@@ -7,9 +7,17 @@ import matplotlib
 from itertools import groupby
 #matplotlib.style.use('ggplot')
 #matplotlib inline
-from sklearn.linear_model.logistic import LogisticRegression
+#import xgboost as xgb
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.decomposition import PCA
+from sklearn.metrics import *
+import csv
+
 def get_admission():
-        admission_df = pd.read_csv("mimic3/demo/ADMISSIONS.csv", sep=',',header=0)
+        admission_df = pd.read_csv("ADMISSIONS.csv", sep=',',header=0)
         return admission_df \
             .drop('ROW_ID', 1) \
             .drop('SUBJECT_ID', 1) \
@@ -25,7 +33,7 @@ def get_admission():
             .drop('HAS_CHARTEVENTS_DATA', 1)
 
 def get_chartevents():
-        chartevents_df = pd.read_csv("mimic3/demo/CHARTEVENTS.csv", sep=',',header=0)
+        chartevents_df = pd.read_csv("CHARTEVENTS.csv", sep=',',header=0)
         return chartevents_df \
             .drop('ROW_ID', 1) \
             .drop('SUBJECT_ID', 1) \
@@ -42,7 +50,7 @@ def get_chartevents():
 
 
 def create_datatable():
-    allitems_df = pd.read_csv("mimic3/demo/CHARTEVENTS.csv", sep=',', header=0)
+    allitems_df = pd.read_csv("CHARTEVENTS.csv", sep=',', header=0)
     return allitems_df \
         .drop('ROW_ID', 1) \
         .drop('VALUENUM', 1) \
@@ -168,6 +176,7 @@ hospital_expire_flag = (admission_df['HOSPITAL_EXPIRE_FLAG'])[0:len(allitems_df)
 ##Take all Hospital_expire_flag values and append it to the dataframe
 series = pd.Series(hospital_expire_flag)
 allitems_df['HOSPITAL_EXPIRE_FLAG'] = series.values
+allitems_df = allitems_df.fillna(0)
 
 print(allitems_df)
 
@@ -180,9 +189,63 @@ allitems_df_training, allitems_df_test = allitems_df[:int(0.8*allitems_length), 
 """
 msk = np.random.rand(len(allitems_df)) < 0.8
 
-allitems_df_training = allitems_df[msk]
+train_data_df = allitems_df[msk]
 
-allitems_df_test = allitems_df[~msk]
+test_data_df = allitems_df[~msk]
 
-print("Training length",len(allitems_df_training))
-print("Test length: ",len(allitems_df_test))
+print("Training length",len(train_data_df))
+print("Test length: ",len(test_data_df))
+print
+print "allitems_df_training"
+
+print train_data_df
+print
+
+labels_numeric = pd.Series(train_data_df['HOSPITAL_EXPIRE_FLAG'],dtype = "category")
+print "labels:",labels_numeric
+train_data_df = train_data_df.drop('HOSPITAL_EXPIRE_FLAG',1)
+test_ideal = test_data_df['HOSPITAL_EXPIRE_FLAG']
+test_data_df = test_data_df.drop('HOSPITAL_EXPIRE_FLAG',1)
+
+train_data_df = np.array(train_data_df)
+
+test_data_df = np.array(test_data_df)
+print "train_data_df",train_data_df
+print "Training dataframe length",len(train_data_df)
+print "test_data_df",test_data_df
+print "Test dataframe length",len(test_data_df)
+
+my_model = LogisticRegression(penalty = 'l1',C = 0.6)
+
+
+my_model = my_model.fit(X=train_data_df, y=labels_numeric)
+
+test_pred = my_model.predict(test_data_df)
+test_pred =  list(test_pred)
+print "test_pred",test_pred
+op = []
+
+with open('results.csv', 'w+') as csvfile:
+    result_writer = csv.writer(csvfile, delimiter=' ',quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    for item in test_pred:
+        result_writer.writerow([item])
+
+"""f = open('results.csv','w+')
+#f.write(test_pred)
+for item in test_pred:
+    f.writerow(item)
+"""
+#print("Results.csv:")
+
+with open('results.csv', 'r') as csvfile:
+    result_reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+    for i in result_reader :
+        #print int(i[0])
+        op.append(int(i[0]))
+
+print "Test ideal: ", test_ideal
+
+print "Classification report:"
+print ()
+print classification_report(op,test_ideal)
+print("Accuracy Score:",accuracy_score(op,test_ideal))
